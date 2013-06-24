@@ -104,7 +104,7 @@ char* paqu_validateSQL(UDF_INIT* initid, UDF_ARGS* args, char* result, unsigned 
     query->error = NULL;
     query->errorLen = -1;
     query->usrName = current_thd->security_ctx->user;
-    query->host = current_thd->security_ctx->host_or_ip;
+    query->host = current_thd->security_ctx->ip;
     query->db = current_thd->db;
 
     //start independent thread for SQL checking (I haven't figured out yet how to 
@@ -164,13 +164,18 @@ pthread_handler_t validate_sql(void* p) {
     LEX_STRING db;
 
     if (query->db == NULL) {
-        query->error = NULL;
-        query->errorLen = -2;
+        query->error = strdup("paqu_validateSQL: No database selected!\n");
+        query->errorLen = strlen(query->error);
+        query->errNum = -2;
         delete lex;
+
 #ifdef __VALIDATE_DEBUG__
         fprintf(stderr, "paqu_validateSQL: DB is null!\n");
 #endif
+
+        deinit_thread(&thd);
         pthread_exit(NULL);
+        return NULL;
     }
 
 
