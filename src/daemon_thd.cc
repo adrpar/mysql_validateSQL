@@ -157,7 +157,7 @@ int deinit_thread(THD ** thd) {
 
 void sql_kill(THD *thd, ulong id, bool only_kill_query) {
     uint error;
- #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50500
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50500
    if (!(error = kill_one_thread(thd, id, (killed_state)only_kill_query))) {
 #else
    if (!(error = kill_one_thread(thd, id, (THD::killed_state)only_kill_query))) {
