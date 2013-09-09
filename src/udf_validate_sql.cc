@@ -104,8 +104,13 @@ char* paqu_validateSQL(UDF_INIT* initid, UDF_ARGS* args, char* result, unsigned 
     query->error = NULL;
     query->errorLen = -1;
     query->usrName = current_thd->security_ctx->user;
-    query->host = current_thd->security_ctx->ip;
+    query->host = current_thd->security_ctx->host_or_ip;
     query->db = current_thd->db;
+
+#ifdef __VALIDATE_DEBUG__
+    fprintf(stderr, "Validating query: %s\n", query->query);
+    fprintf(stderr, "on host: %s\n", query->host);
+#endif
 
     //start independent thread for SQL checking (I haven't figured out yet how to 
     //avoid this... better ideas are welcome)
@@ -151,8 +156,16 @@ pthread_handler_t validate_sql(void* p) {
     validate_sql_info * query = (validate_sql_info*) p;
     THD * thd = NULL;
 
+#ifdef __VALIDATE_DEBUG__
+    fprintf(stderr, "paqu_validateSQL: entering validate_sql\n");
+#endif
+
     init_thread(&thd, "Validating SQL Query");
     thd->init_for_queries();
+
+#ifdef __VALIDATE_DEBUG__
+    fprintf(stderr, "paqu_validateSQL: thread initialised\n");
+#endif
 
     LEX * lex = new LEX;
     thd->lex = lex;
@@ -164,18 +177,18 @@ pthread_handler_t validate_sql(void* p) {
     LEX_STRING db;
 
     if (query->db == NULL) {
-        query->error = strdup("paqu_validateSQL: No database selected!\n");
-        query->errorLen = strlen(query->error);
-        query->errNum = -2;
-        delete lex;
+      query->error = strdup("paqu_validateSQL: No database selected!\n");
+      query->errorLen = strlen(query->error);
+      query->errNum = -2;
+      delete lex;
 
 #ifdef __VALIDATE_DEBUG__
-        fprintf(stderr, "paqu_validateSQL: DB is null!\n");
+      fprintf(stderr, "paqu_validateSQL: DB is null!\n");
 #endif
 
-        deinit_thread(&thd);
-        pthread_exit(NULL);
-        return NULL;
+      deinit_thread(&thd);
+      pthread_exit(NULL);
+      return NULL;
     }
 
 
@@ -192,7 +205,15 @@ pthread_handler_t validate_sql(void* p) {
 
     lex_start(thd);
 
+#ifdef __VALIDATE_DEBUG__
+    fprintf(stderr, "paqu_validateSQL: trying to change security context to: user %s - host %s - db %s\n", user.str, host.str, db.str);
+#endif
+
     newContext.change_security_context(thd, &user, &host, &db, &old);
+
+#ifdef __VALIDATE_DEBUG__
+    fprintf(stderr, "paqu_validateSQL: security context successfully changed\n");
+#endif
 
     if (mysql_change_db(thd, &db, FALSE)) {
         //let's try again if the host is localhost, with 127.0.0.1
