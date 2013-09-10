@@ -533,11 +533,7 @@ bool validate_and_check_create_table(THD * thd, LEX * lex, SELECT_LEX * select_l
 
         /* The table already exists */
         if (!mysql_parse_status && create_table->table) {
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50500
-            my_error(ER_TABLE_EXISTS_ERROR, MYF(0), create_table->table->alias.c_ptr());
-#else
             my_error(ER_TABLE_EXISTS_ERROR, MYF(0), create_table->table->alias);
-#endif
             mysql_parse_status |= 1;
             return mysql_parse_status;
         }
