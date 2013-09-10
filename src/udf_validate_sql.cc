@@ -104,7 +104,12 @@ char* paqu_validateSQL(UDF_INIT* initid, UDF_ARGS* args, char* result, unsigned 
     query->error = NULL;
     query->errorLen = -1;
     query->usrName = current_thd->security_ctx->user;
-    query->host = current_thd->security_ctx->host_or_ip;
+    query->host = current_thd->security_ctx->ip;
+
+    if(query->host == NULL) {
+      query->host = current_thd->security_ctx->host_or_ip;
+    }
+
     query->db = current_thd->db;
 
 #ifdef __VALIDATE_DEBUG__
@@ -282,6 +287,10 @@ pthread_handler_t validate_sql(void* p) {
             length--;
         }
 
+#ifdef __VALIDATE_DEBUG__
+        fprintf(stderr, "Multiple query detected at %s\n", beginning_of_next_stmt);
+#endif
+
         parser_state.reset(beginning_of_next_stmt, length);
 
         lex_start(thd);
@@ -320,6 +329,10 @@ bool validate_and_check_statment(THD * thd) {
 
     bool mysql_parse_status = MYSQLparse(thd);
 
+#ifdef __VALIDATE_DEBUG__
+    fprintf(stderr, "paqu_validateSQL: entering validate_and_check_statement\n");
+#endif
+
     thd->stmt_arena->state = Query_arena::STMT_INITIALIZED;
 
     TABLE_LIST *all_tables = NULL;
@@ -331,18 +344,35 @@ bool validate_and_check_statment(THD * thd) {
 
     ulong privileges_requested = lex->exchange ? SELECT_ACL | FILE_ACL : SELECT_ACL;
 
+#ifdef __VALIDATE_DEBUG__
+    fprintf(stderr, "paqu_validateSQL: checking table access\n");
+#endif
+
     if (all_tables) {
+#ifdef __VALIDATE_DEBUG__
+        fprintf(stderr, "paqu_validateSQL: checking table access with all_tables\n");
+#endif
         mysql_parse_status |= check_table_access(thd,
                 privileges_requested,
                 all_tables, FALSE, UINT_MAX, FALSE);
 
+#ifdef __VALIDATE_DEBUG__
+        fprintf(stderr, "paqu_validateSQL: trying to open_and_lock_tables\n");
+#endif
         mysql_parse_status |= open_and_lock_tables(thd, all_tables, TRUE, 0);
     } else {
+#ifdef __VALIDATE_DEBUG__
+        fprintf(stderr, "paqu_validateSQL: no all_tables\n");
+#endif
         mysql_parse_status |= check_access(thd, privileges_requested, any_db, NULL, NULL, 0, 0);
     }
 
     //did we pass the check if all databases and table names are correct? if yes, continue checking
     //columns...
+
+#ifdef __VALIDATE_DEBUG__
+    fprintf(stderr, "paqu_validateSQL: access OK\n");
+#endif
 
     if (!mysql_parse_status) {
 
@@ -354,17 +384,29 @@ bool validate_and_check_statment(THD * thd) {
 
                 mysql_parse_status |= mysql_change_db(thd, &db_str, FALSE);
 
+#ifdef __VALIDATE_DEBUG__
+		fprintf(stderr, "paqu_validateSQL: changed database %s\n", (char *) lex->select_lex.db);
+#endif
+
                 break;
             }
             case SQLCOM_SELECT:
             {
                 mysql_parse_status |= validate_and_check_select(thd, lex, select_lex);
 
+#ifdef __VALIDATE_DEBUG__
+                fprintf(stderr, "paqu_validateSQL: validateing SELECT\n");
+#endif
+
                 break;
             }
             case SQLCOM_CREATE_TABLE:
             {
                 mysql_parse_status |= validate_and_check_create_table(thd, lex, select_lex);
+
+#ifdef __VALIDATE_DEBUG__
+                fprintf(stderr, "paqu_validateSQL: validateing CREATE TABLE\n");
+#endif
 
                 break;
             }
