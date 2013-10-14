@@ -104,7 +104,11 @@ char* paqu_validateSQL(UDF_INIT* initid, UDF_ARGS* args, char* result, unsigned 
     query->error = NULL;
     query->errorLen = -1;
     query->usrName = current_thd->security_ctx->user;
+#if MYSQL_VERSION_ID < 50534
     query->host = current_thd->security_ctx->ip;
+#else
+    query->host = current_thd->security_ctx->get_ip()->c_ptr();
+#endif
 
     if(query->host == NULL) {
       query->host = current_thd->security_ctx->host_or_ip;
