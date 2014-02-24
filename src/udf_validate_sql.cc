@@ -104,7 +104,7 @@ char* paqu_validateSQL(UDF_INIT* initid, UDF_ARGS* args, char* result, unsigned 
     query->error = NULL;
     query->errorLen = -1;
     query->usrName = current_thd->security_ctx->user;
-#if MYSQL_VERSION_ID < 50534
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50534
     query->host = current_thd->security_ctx->ip;
 #else
     query->host = current_thd->security_ctx->get_ip()->c_ptr();
@@ -307,9 +307,15 @@ pthread_handler_t validate_sql(void* p) {
     thd->security_ctx->restore_security_context(thd, old);
 
     if (mysql_parse_status) {
+#if MYSQL_VERSION_ID >= 50603
+        query->error = strdup(thd->get_stmt_da()->message());
+        query->errorLen = strlen(query->error);
+        query->errNum = thd->get_stmt_da()->sql_errno();
+#else
         query->error = strdup(thd->stmt_da->message());
         query->errorLen = strlen(query->error);
         query->errNum = thd->stmt_da->sql_errno();
+#endif
     } else {
         query->error = NULL;
         query->errorLen = -1;
@@ -476,9 +482,15 @@ bool validate_and_check_select(THD * thd, LEX * lex, SELECT_LEX * select_lex) {
                     if (subselect && subselect->is_uncacheable() && join->reinit())
                         DBUG_RETURN(TRUE);
                 } else {
+#if defined(MARIADB_BASE_VERSION)
+                    mysql_parse_status |= join->prepare(rref_pointer_array, tables, wild_num,
+                            conds, og_num, order, false, group, having, proc_param,
+                            select_lex, unit);
+#else
                     mysql_parse_status |= join->prepare(rref_pointer_array, tables, wild_num,
                             conds, og_num, order, group, having, proc_param,
                             select_lex, unit);
+#endif
                 }
             }
             free_join = 0;
@@ -493,9 +505,15 @@ bool validate_and_check_select(THD * thd, LEX * lex, SELECT_LEX * select_lex) {
             thd->used_tables = 0; // Updated by setup_fields                                                      
 #endif
 
+#if defined(MARIADB_BASE_VERSION)
+            mysql_parse_status |= join->prepare(rref_pointer_array, tables, wild_num,
+                    conds, og_num, order, false, group, having, proc_param,
+                    select_lex, unit);
+#else
             mysql_parse_status |= join->prepare(rref_pointer_array, tables, wild_num,
                     conds, og_num, order, group, having, proc_param,
                     select_lex, unit);
+#endif
         }
     }
 
@@ -537,7 +555,11 @@ bool validate_and_check_create_table(THD * thd, LEX * lex, SELECT_LEX * select_l
 
         /* The table already exists */
         if (!mysql_parse_status && create_table->table) {
+#if defined(MARIADB_BASE_VERSION)
+            my_error(ER_TABLE_EXISTS_ERROR, MYF(0), create_table->table->alias.c_ptr());
+#else
             my_error(ER_TABLE_EXISTS_ERROR, MYF(0), create_table->table->alias);
+#endif
             mysql_parse_status |= 1;
             return mysql_parse_status;
         }

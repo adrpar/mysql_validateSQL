@@ -40,7 +40,7 @@
 #include <sql_parse.h>
 #include "daemon_thd.h"
 
-#if MYSQL_VERSION_ID >= 50606
+#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50606
 #include <global_threads.h>
 #endif
 
@@ -49,8 +49,12 @@
 #pragma implementation
 #endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50500
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50500 && MYSQL_VERSION_ID < 100000
 extern uint kill_one_thread(THD *thd, ulong id, killed_state kill_signal);
+#endif
+
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
+extern uint kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type type);
 #endif
 
 int init_thread(THD ** thd, const char * threadInfo) {
@@ -100,7 +104,12 @@ int init_thread(THD ** thd, const char * threadInfo) {
     ++thread_count;
 #else
 
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50606
+    threads.append(*thd);
+    ++thread_count;
+#else
     add_global_thread(*thd);
+#endif
 
 #endif
 
@@ -122,7 +131,7 @@ int deinit_thread(THD ** thd) {
 	pthread_mutex_lock(&LOCK_thread_count);
 #endif
 
-#if MYSQL_VERSION_ID < 50606
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50606
     (*thd)->unlink();
     delete *thd;
     --thread_count;
@@ -157,8 +166,10 @@ int deinit_thread(THD ** thd) {
 
 void sql_kill(THD *thd, ulong id, bool only_kill_query) {
     uint error;
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50500
-   if (!(error = kill_one_thread(thd, id, (killed_state)only_kill_query))) {
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50500 && MYSQL_VERSION_ID < 100000
+   if (!(error = kill_one_thread(thd, id, (killed_state)(only_kill_query ? 4 : 8)))) {
+#elif defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
+   if (!(error = kill_one_thread(thd, id, (killed_state)(only_kill_query ? 4 : 8), KILL_TYPE_ID))) {
 #else
    if (!(error = kill_one_thread(thd, id, (THD::killed_state)only_kill_query))) {
 #endif
