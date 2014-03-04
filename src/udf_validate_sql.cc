@@ -337,7 +337,15 @@ bool validate_and_check_statment(THD * thd) {
     LEX * lex = thd->lex;
     SELECT_LEX * select_lex = &lex->select_lex;
 
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
+    Parser_state parser_state;
+    if (parser_state.init(thd, thd->query(), thd->query_length()))
+        return 0;
+
+    bool mysql_parse_status = parse_sql(thd, &parser_state, NULL, true);
+#else
     bool mysql_parse_status = MYSQLparse(thd);
+#endif
 
 #ifdef __VALIDATE_DEBUG__
     fprintf(stderr, "paqu_validateSQL: entering validate_and_check_statement\n");

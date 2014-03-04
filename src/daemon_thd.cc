@@ -82,7 +82,7 @@ int init_thread(THD ** thd, const char * threadInfo) {
     const NET v = {0};
     (*thd)->net = v;
 
-    thd_proc_info((*thd), threadInfo);
+    //thd_proc_info((*thd), threadInfo);
 
     //(*thd)->security_ctx = NULL;
     (*thd)->db = NULL;
