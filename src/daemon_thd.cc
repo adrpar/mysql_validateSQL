@@ -99,18 +99,11 @@ int init_thread(THD ** thd, const char * threadInfo) {
     pthread_mutex_lock(&LOCK_thread_count);
 #endif
 
-#if MYSQL_VERSION_ID < 50606
-    threads.append(*thd);
-    ++thread_count;
-#else
-
 #if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50606
     threads.append(*thd);
     ++thread_count;
 #else
     add_global_thread(*thd);
-#endif
-
 #endif
 
 #if MYSQL_VERSION_ID >= 50505
@@ -131,7 +124,11 @@ int deinit_thread(THD ** thd) {
 	pthread_mutex_lock(&LOCK_thread_count);
 #endif
 
-#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50606
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
+    (*thd)->unlink();
+    delete *thd;
+    --thread_count;
+#elif defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50606
     (*thd)->unlink();
     delete *thd;
     --thread_count;
